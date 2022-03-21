@@ -1,0 +1,73 @@
+---
+title: "STATS415"
+author: "Haichen Fu"
+date: "3/18/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Libraries
+library(haven)
+library(tidyverse)
+```
+
+```{r}
+# Combining datasets
+bm_09       <- read_xpt("2009_BMX_F.XPT")
+bp_09       <- read_xpt("2009_BPX_F.XPT")
+demo_09     <- read_xpt("2009_DEMO_F.XPT")
+dr_09       <- read_xpt("2009_DR1TOT_F.XPT")
+smq_09      <- read_xpt("2009_SMQ_F.XPT")
+tchol_09    <- read_xpt("2009_TCHOL_F.XPT")
+
+bm_11       <- read_xpt("2011_BMX_G.XPT")
+bp_11       <- read_xpt("2011_BPX_G.XPT")
+demo_11     <- read_xpt("2011_DEMO_G.XPT")
+dr_11       <- read_xpt("2011_DR1TOT_G.XPT")
+smq_11      <- read_xpt("2011_SMQ_G.XPT")
+tchol_11    <- read_xpt("2011_TCHOL_G.XPT")
+
+bm_13       <- read_xpt("2013_BMX_H.XPT")
+bp_13       <- read_xpt("2013_BPX_H.XPT")
+demo_13     <- read_xpt("2013_DEMO_H.XPT")
+dr_13       <- read_xpt("2013_DR1TOT_H.XPT")
+smq_13      <- read_xpt("2013_SMQ_H.XPT")
+tchol_13    <- read_xpt("2013_TCHOL_H.XPT")
+
+bm_15       <- read_xpt("2015_BMX_I.XPT")
+bp_15       <- read_xpt("2015_BPX_I.XPT")
+demo_15     <- read_xpt("2015_DEMO_I.XPT")
+dr_15       <- read_xpt("2015_DR1TOT_I.XPT")
+smq_15      <- read_xpt("2015_SMQ_I.XPT")
+tchol_15    <- read_xpt("2015_TCHOL_I.XPT")
+
+bm_17       <- read_xpt("2017_BMX_J.XPT")
+bp_17       <- read_xpt("2017_BPX_J.XPT")
+demo_17     <- read_xpt("2017_DEMO_J.XPT")
+dr_17       <- read_xpt("2017_DR1TOT_J.XPT")
+smq_17      <- read_xpt("2017_SMQ_J.XPT")
+tchol_17    <- read_xpt("2017_TCHOL_J.XPT")
+
+
+df_list_2009 <- list(bm_09, bp_09, demo_09, dr_09, smq_09, tchol_09)
+df_list_2011 <- list(bm_11, bp_11, demo_11, dr_11, smq_11, tchol_11)
+df_list_2013 <- list(bm_13, bp_13, demo_13, dr_13, smq_13, tchol_13)
+df_list_2015 <- list(bm_15, bp_15, demo_15, dr_15, smq_15, tchol_15)
+df_list_2017 <- list(bm_17, bp_17, demo_17, dr_17, smq_17, tchol_17)
+
+
+df_2009 <- df_list_2009 %>% reduce(full_join, by='SEQN')
+df_2011 <- df_list_2011 %>% reduce(full_join, by='SEQN')
+df_2013 <- df_list_2013 %>% reduce(full_join, by='SEQN')
+df_2015 <- df_list_2015 %>% reduce(full_join, by='SEQN')
+df_2017 <- df_list_2017 %>% reduce(full_join, by='SEQN')
+
+
+full_df <- bind_rows(df_2009, df_2011, df_2013, df_2015, df_2017)
+head(full_df)
+```
+
