@@ -69,19 +69,15 @@ df_2017 <- df_list_2017 %>% reduce(full_join, by='SEQN')
 full_df <- bind_rows(df_2009, df_2011, df_2013, df_2015, df_2017)
 head(full_df)
 ```
+## Training set
 ```{r}
+#combine training data with the full set
 train<-read.csv("train.csv")
 train_df<-merge(x=train,y=full_df,all.x=TRUE,by="SEQN")
 ```
 
 ```{r}
-drop<-list("SMDUPCA","SMD100BR","DR1DRSTZ","DRABF","RIDSTATR")
-train_df<-train_df[,-which(colnames(train_df) %in% drop)]
-
-```
-
-```{r}
-flag<-FALSE
+#drop out all columns containing NA
 dropna<-vector()
 for (i in colnames(train_df)){
   col<-train_df[,which(colnames(train_df)==i)]
@@ -90,5 +86,26 @@ for (i in colnames(train_df)){
   }
 }
 train_df<-train_df[,-which(colnames(train_df) %in% dropna)]
+```
+
+```{r}
+#drop out columns specified by the guidance 
+drop<-list("SMDUPCA","SMD100BR","DR1DRSTZ","DRABF","RIDSTATR")
+train_df<-train_df[,-which(colnames(train_df) %in% drop)]
+```
+
+## Testing set
+```{r}
+#combine test set with the full set
+test<-read.csv("test.csv")
+test_df<-merge(x=test,y=full_df,all.x=TRUE,by="SEQN")
+test_df<-test_df[,-which(colnames(test_df) %in% dropna)]
+test_df<-test_df[,-which(colnames(test_df) %in% drop)]
+```
+
+## Models
+
+```{r}
+#linear regression model
 ```
 
