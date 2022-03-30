@@ -4,6 +4,13 @@ author: "Haichen Fu"
 date: "3/18/2022"
 output: pdf_document
 ---
+Notes:
+Outcomes (y) are synthetic - they were generated from a subset of size k ≪ p variables.
+y is a nonlinear function of the k variables with interactions
+
+Ideas: 
+Use CV to tune on training set
+Use Lasso to select variables to use in other, more flexible, models Use principal components as input to other regression models (including non-linear and tree-based models)
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -94,6 +101,15 @@ drop<-list("SMDUPCA","SMD100BR","DR1DRSTZ","DRABF","RIDSTATR")
 train_df<-train_df[,-which(colnames(train_df) %in% drop)]
 ```
 
+```{r}
+#standardize all variables
+standardize<-function(x){
+  return((x-mean(x))/sd(x))
+}
+train_std<-as.data.frame(lapply(train_df[,-2],standardize))
+train_std$y<-train_df$y                
+```
+
 ## Testing set
 ```{r}
 #combine test set with the full set
@@ -101,11 +117,155 @@ test<-read.csv("test.csv")
 test_df<-merge(x=test,y=full_df,all.x=TRUE,by="SEQN")
 test_df<-test_df[,-which(colnames(test_df) %in% dropna)]
 test_df<-test_df[,-which(colnames(test_df) %in% drop)]
+
+#standardize test set
+test_std<-as.data.frame(lapply(test_df,standardize))
 ```
+
+# Split into training and validation set
+```{r}
+set.seed(1)
+trainid<-sample(nrow(train_std),trunc(nrow(train_std)*0.8))
+train_model<-train_std[trainid,]
+test_model<-train_std[-trainid,]
+```
+
+## Notes
+train_df: training set including all variables
+test_df: test set including all variables with y to be predicted
+train_std: standardized training set
+test_std: standardized test set with y to be predicted
+train_model: 80% split training set used to train
+test_model: 20% validation set
+lasso_coef: variables selected by lasso
 
 ## Models
 
 ```{r}
 #linear regression model
+
+lg<-lm(y~.,data=train_model)
+lg_train_pred<-predict(lg,train_model)
+lg_test_pred<-predict(lg,test_model)
+test_response<-test_model$y
+(cor(lg_train_pred,train_model$y))^2
+(cor(lg_test_pred,test_response))^2
+```
+## Variable selection
+```{r}
+#lasso select variable
+library(glmnet)
+#no need to transform variables to dummy in this case as all predictors are quantitative
+trainX<-model.matrix(y~.,train_model)[,-1]
+trainY<-train_model$y
+testX<-model.matrix(y~.,test_model)[,-1]
+testY<-test_model$y
+
+#fit lasso model with cross validation to select the best lambda
+fitlasso<-glmnet(trainX,trainY,alpha=1,standardize = FALSE)
+set.seed(123)
+cv<-cv.glmnet(trainX,trainY,alpha=1,standardize=FALSE)
+bestlam<-cv$lambda.min
+bestlam
+
+#training error
+lasso_pred_train<-predict(fitlasso,s=bestlam,newx=trainX)
+trainerror_lasso<-mean((lasso_pred_train-trainY)^2)
+(cor(lasso_pred_train,train_model$y))^2
+
+#test error
+lasso_pred_test<-predict(fitlasso,s=bestlam,newx=testX)
+testerror_lasso<-mean((lasso_pred_test-testY)^2)
+(cor(lasso_pred_test,test_model$y))^2
+```
+```{r}
+#coefficients selected by lasso
+lasso_coef<-coef(fitlasso,s=bestlam)
+lasso_coef<-as.data.frame(lasso_coef[,1])
+lasso_coef$name<-c("Intercept",colnames(train_model[,-144]))
+lasso_coef<-lasso_coef$name[which(lasso_coef$`lasso_coef[, 1]`!=0)]
+lasso_coef<-lasso_coef[-1] #remove intercept
+length(lasso_coef)
 ```
 
+```{r}
+#PCR regression
+library(pls)
+set.seed(1)
+pcr.fit<-pcr(y~.data=train_model,scale=TRUE,validation="CV")
+cverr<-RMSEP(pcr.fit)$val[1,,]
+which.min(cverr)-1
+
+#PLS
+set.seed(1)
+
+pls.fit<-plsr(y~.,data=train_model,scale=TRUE,validation="CV")
+```
+
+
+```{r}
+#KNN (using variables selected by lasso)
+library(FNN)
+lasso_coef
+knn_train<-train_model[,lasso_coef]
+knn_test<-test_model[,lasso_coef]
+
+
+#select K by cross validation
+Ks<-seq(1,101,by=5)
+test_R2s<-c()
+for(K in Ks){
+  knnmodel<-knn.reg(train=knn_train,y=train_model$y,test=knn_test,k=K)
+  test_R2<-cor(knnmodel$pred,test_model$y)^2
+  test_R2s<-c(test_R2s,test_R2)
+}
+```
+```{r}
+test_R2s
+Ks[which.max(test_R2s)]
+max(test_R2s)
+```
+
+
+
+```{r}
+#Decision tree
+library(tree)
+tree_model<-tree(y~.,data=train_model)
+cv.train<-cv.tree(tree_model)
+tree_pred<-predict(tree_model,newdata=test_model)
+```
+
+```{r}
+(cor(tree_pred,test_model$y))^2
+```
+
+```{r}
+#Random forest
+library(randomForest)
+#rf_model<-randomForest(y~.,data=train_model,mtry=8,importance=TRUE)
+#rf_test_pred<-predict(rf_model,newdata=test_model)
+#(cor(rf_test_pred,test_model$y))^2
+
+
+Ms<-seq(1,31,by=3)
+test_rf_R2s<-c()
+for(m in Ms){
+  rf_model<-randomForest(y~.,data=train_model,mtry=m,importance=TRUE)
+  rf_test_pred<-predict(rf_model,newdata=test_model)
+  test_rf_R2<-cor(rf_test_pred,test_model$y)^2
+  test_rf_R2s<-c(test_rf_R2s,test_rf_R2)
+}
+```
+
+```{r}
+#20220327_random forest submission
+rf_truetest_pred<-predict(rf_model,newdata=test_std)
+test$y<-rf_truetest_pred
+test
+write.csv(test,file="rf_model.csv",row.names=FALSE)
+```
+### To be answer:
+ * variable selection & How to include intersection terms into the model? 
+  It seems that the lasso model still retain too many variables: )
+ * how to use principal components to train and make prediction for test set? 
